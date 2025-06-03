@@ -6,10 +6,12 @@ import VelocityChart from './VelocityChart';
 export default function CollisionScene() {
   const sceneRef = useRef();
   const engineRef = useRef();
-  const { params, setParams, running } = useContext(ExperimentContext);
+  const runnerRef = useRef();
+  const { params, setParams, running, paused, resetKey } = useContext(ExperimentContext);
   const [velHistory, setVelHistory] = useState([]);
-  const [resetKey, setResetKey] = useState(0);
   const runningRef = useRef(running);
+  const pausedRef = useRef(paused);
+  const blocksRef = useRef({ blockA: null, blockB: null });
 
   // 采样定时器
   const sampleTimer = useRef(null);
@@ -19,7 +21,6 @@ export default function CollisionScene() {
     runningRef.current = running;
     if (running) {
       setVelHistory([]);
-      setResetKey((k) => k + 1);
     } else {
       // 停止采样
       if (sampleTimer.current) {
@@ -28,6 +29,42 @@ export default function CollisionScene() {
       }
     }
   }, [running]);
+
+  // 监听 paused 状态变化
+  useEffect(() => {
+    pausedRef.current = paused;
+    if (paused) {
+      // 暂停时停止采样和物理引擎
+      if (sampleTimer.current) {
+        clearInterval(sampleTimer.current);
+        sampleTimer.current = null;
+      }
+      if (runnerRef.current) {
+        Matter.Runner.stop(runnerRef.current);
+      }
+    } else if (running && blocksRef.current.blockA && blocksRef.current.blockB) {
+      // 继续时重新开始采样和物理引擎
+      if (runnerRef.current) {
+        Matter.Runner.start(runnerRef.current, engineRef.current);
+      }
+      let frameCount = 0;
+      sampleTimer.current = setInterval(() => {
+        frameCount++;
+        setVelHistory((old) => [...old, { 
+          t: frameCount, 
+          vA: blocksRef.current.blockA.velocity.x, 
+          vB: blocksRef.current.blockB.velocity.x,
+          mA: params.m1,
+          mB: params.m2
+        }]);
+      }, 30); // 约33fps
+    }
+  }, [paused, running, params.m1, params.m2]);
+
+  // 监听 resetKey 变化，重置曲线
+  useEffect(() => {
+    setVelHistory([]);
+  }, [resetKey]);
 
   useEffect(() => {
     const Engine = Matter.Engine;
@@ -62,8 +99,35 @@ export default function CollisionScene() {
       },
     });
 
-    const leftWall = Bodies.rectangle(0, centerY, 20, height, { restitution: params.restitution,isStatic: true, render: { visible: false } });
-    const rightWall = Bodies.rectangle(width, centerY, 20, height, { restitution: params.restitution,isStatic: true, render: { visible: false } });
+    // 创建地面和墙壁
+    const ground = Bodies.rectangle(width/2, centerY + blockHeight/2 + 10, width, 20, { 
+      isStatic: true,
+      render: { 
+        fillStyle: '#e0e0e0',
+        strokeStyle: '#999',
+        lineWidth: 1
+      }
+    });
+
+    const leftWall = Bodies.rectangle(0, centerY, 20, height, { 
+      restitution: params.restitution,
+      isStatic: true, 
+      render: { 
+        fillStyle: '#e0e0e0',
+        strokeStyle: '#999',
+        lineWidth: 1
+      }
+    });
+
+    const rightWall = Bodies.rectangle(width, centerY, 20, height, { 
+      restitution: params.restitution,
+      isStatic: true, 
+      render: { 
+        fillStyle: '#e0e0e0',
+        strokeStyle: '#999',
+        lineWidth: 1
+      }
+    });
 
     const blockA = Bodies.rectangle(params.x1, centerY, blockWidth, blockHeight, {
       restitution: params.restitution,
@@ -71,54 +135,32 @@ export default function CollisionScene() {
       mass: params.m1,
       inertia: Infinity,
       angle: 0,
-      render: { fillStyle: '#4f8cff' },
+      render: { 
+        fillStyle: '#4f8cff',
+        strokeStyle: '#1e60d4',
+        lineWidth: 2
+      },
       label: 'A',
     });
+
     const blockB = Bodies.rectangle(params.x2, centerY, blockWidth, blockHeight, {
       restitution: params.restitution,
       frictionAir: params.frictionAir,
       mass: params.m2,
       inertia: Infinity,
       angle: 0,
-      render: { fillStyle: '#ffb84f' },
+      render: { 
+        fillStyle: '#ffb84f',
+        strokeStyle: '#d48a1e',
+        lineWidth: 2
+      },
       label: 'B',
     });
 
-    World.add(engine.world, [leftWall, rightWall, blockA, blockB]);
+    // 保存块引用
+    blocksRef.current = { blockA, blockB };
 
-    // // 添加碰撞事件监听
-    // Events.on(engine, 'collisionStart', (event) => {
-    //   event.pairs.forEach((pair) => {
-    //     const bodyA = pair.bodyA;
-    //     const bodyB = pair.bodyB;
-        
-    //     // 量化速度到最接近的0.1
-    //     const quantizeVelocity = (velocity) => {
-    //       return Math.round(velocity * 10) / 10;
-    //     };
-
-    //     // 处理物块之间的碰撞
-    //     if ((bodyA === blockA && bodyB === blockB) || (bodyA === blockB && bodyB === blockA)) {
-    //       Body.setVelocity(bodyA, { 
-    //         x: quantizeVelocity(bodyA.velocity.x),
-    //         y: 0 
-    //       });
-    //       Body.setVelocity(bodyB, { 
-    //         x: quantizeVelocity(bodyB.velocity.x),
-    //         y: 0 
-    //       });
-    //     }
-        
-    //     // 处理物块与墙的碰撞
-    //     if (bodyA === leftWall || bodyA === rightWall || bodyB === leftWall || bodyB === rightWall) {
-    //       const block = bodyA === leftWall || bodyA === rightWall ? bodyB : bodyA;
-    //       Body.setVelocity(block, { 
-    //         x: quantizeVelocity(block.velocity.x),
-    //         y: 0 
-    //       });
-    //     }
-    //   });
-    // });
+    World.add(engine.world, [ground, leftWall, rightWall, blockA, blockB]);
 
     // 添加弹簧约束
     let spring = null;
@@ -231,9 +273,14 @@ export default function CollisionScene() {
       });
     });
 
-    // 记录速度曲线（只在 running 时采样）
+    Render.run(render);
+    const runner = Runner.create();
+    runnerRef.current = runner;
+    Runner.run(runner, engine);
+
+    // 记录速度曲线（只在 running 且未暂停时采样）
     let t0 = performance.now();
-    if (running) {
+    if (running && !paused) {
       sampleTimer.current = setInterval(() => {
         const now = performance.now();
         const t = ((now - t0) / 1000).toFixed(2) * 1;
@@ -247,10 +294,6 @@ export default function CollisionScene() {
       }, 30);
     }
 
-    Render.run(render);
-    const runner = Runner.create();
-    Runner.run(runner, engine);
-
     return () => {
       Render.stop(render);
       World.clear(engine.world);
@@ -260,9 +303,11 @@ export default function CollisionScene() {
         clearInterval(sampleTimer.current);
         sampleTimer.current = null;
       }
+      blocksRef.current = { blockA: null, blockB: null };
+      runnerRef.current = null;
     };
     // eslint-disable-next-line
-  }, [params, running, resetKey]);
+  }, [params, running, resetKey]); // 移除 paused 依赖
 
   return (
     <>

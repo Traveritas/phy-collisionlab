@@ -10,10 +10,21 @@ const restitutionOptions = [
 ];
 
 export default function ControlPanel() {
-  const { params, setParams, running, setRunning } = useContext(ExperimentContext);
+  const { params, setParams, running, setRunning, paused, setPaused, setResetKey } = useContext(ExperimentContext);
 
   const handleChange = (key, value) => {
     setParams((p) => ({ ...p, [key]: value }));
+  };
+
+  const handlePause = () => {
+    setPaused(p => !p);
+  };
+
+  const handleReset = () => {
+    setRunning(false);
+    setPaused(false);
+    setParams(p => ({ ...p }));
+    setResetKey(k => k + 1);
   };
 
   return (
@@ -89,7 +100,10 @@ export default function ControlPanel() {
       <Row style={{ marginTop: 16 }}>
         <Col span={24} style={{ textAlign: 'center' }}>
           <Button type="primary" onClick={() => setRunning(true)} disabled={running} style={{ marginRight: 12 }}>开始实验</Button>
-          <Button onClick={() => { setRunning(false); setParams(p => ({ ...p })); }} disabled={!running}>重置</Button>
+          <Button onClick={handlePause} disabled={!running} style={{ marginRight: 12 }}>
+            {paused ? '继续' : '暂停'}
+          </Button>
+          <Button onClick={handleReset} disabled={!running}>重置</Button>
         </Col>
       </Row>
     </div>

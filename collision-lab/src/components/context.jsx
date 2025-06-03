@@ -19,15 +19,19 @@ const defaultParams = {
 export function ExperimentProvider({ children }) {
   const [params, setParams] = useState(defaultParams);
   const [running, setRunning] = useState(false);
+  const [paused, setPaused] = useState(false);
   const [taskIndex, setTaskIndex] = useState(0);
   const [feedback, setFeedback] = useState({ text: '', result: '', loading: false, error: null });
+  const [resetKey, setResetKey] = useState(0);
 
   return (
     <ExperimentContext.Provider value={{
       params, setParams,
       running, setRunning,
+      paused, setPaused,
       taskIndex, setTaskIndex,
       feedback, setFeedback,
+      resetKey, setResetKey,
     }}>
       {children}
     </ExperimentContext.Provider>
