@@ -169,7 +169,7 @@ export default function CollisionScene() {
         bodyA: blockA,
         bodyB: blockB,
         stiffness: params.springStiffness,
-        length: params.springLength,
+        length: params.springLength * 60, // 将米转换为像素
         render: {
           visible: true,
           type: 'line',
@@ -195,6 +195,32 @@ export default function CollisionScene() {
       ctx.shadowBlur = 4;
       ctx.fillText('A', blockA.position.x, blockA.position.y);
       ctx.fillText('B', blockB.position.x, blockB.position.y);
+
+      // 绘制刻度尺
+      ctx.font = '12px Segoe UI, Arial';
+      ctx.fillStyle = '#666';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'top';
+      ctx.shadowBlur = 0;
+      
+      // 绘制刻度线和数字
+      const scaleStart = 60; // 从左边墙开始
+      const scaleEnd = width - 60; // 到右边墙结束
+      const meterLength = 60; // 1米对应的像素数
+      
+      for (let x = scaleStart; x <= scaleEnd; x += meterLength) {
+        // 绘制刻度线
+        ctx.beginPath();
+        ctx.moveTo(x, height - 30);
+        ctx.lineTo(x, height - 25);
+        ctx.strokeStyle = '#666';
+        ctx.lineWidth = 1;
+        ctx.stroke();
+        
+        // 绘制刻度值
+        const meters = Math.floor((x - scaleStart) / meterLength);
+        ctx.fillText(`${meters}m`, x, height - 20);
+      }
 
       // 绘制弹簧
       if (params.hasSpring && spring) {
@@ -270,6 +296,48 @@ export default function CollisionScene() {
         Body.setAngle(block, 0);
         Body.setAngularVelocity(block, 0);
         Body.setVelocity(block, { x: block.velocity.x, y: 0 });
+      });
+    });
+
+    // 添加碰撞事件监听
+    Events.on(engine, 'collisionStart', (event) => {
+      event.pairs.forEach((pair) => {
+        const bodyA = pair.bodyA;
+        const bodyB = pair.bodyB;
+        
+        // 检查是否与墙壁碰撞
+        if (bodyA === leftWall || bodyB === leftWall) {
+          const block = bodyA === leftWall ? bodyB : bodyA;
+          // 计算反弹速度
+          const newVelocity = -block.velocity.x * params.restitution;
+          Body.setVelocity(block, { x: newVelocity, y: 0 });
+        }
+        if (bodyA === rightWall || bodyB === rightWall) {
+          const block = bodyA === rightWall ? bodyB : bodyA;
+          // 计算反弹速度
+          const newVelocity = -block.velocity.x * params.restitution;
+          Body.setVelocity(block, { x: newVelocity, y: 0 });
+        }
+        
+        // 检查物块之间的碰撞
+        if ((bodyA === blockA && bodyB === blockB) || (bodyA === blockB && bodyB === blockA)) {
+          const m1 = blockA.mass;
+          const m2 = blockB.mass;
+          const v1 = blockA.velocity.x;
+          const v2 = blockB.velocity.x;
+          
+          // 计算碰撞后的速度（一维弹性碰撞）
+          const newV1 = ((m1 - m2) * v1 + 2 * m2 * v2) / (m1 + m2);
+          const newV2 = ((m2 - m1) * v2 + 2 * m1 * v1) / (m1 + m2);
+          
+          // 应用恢复系数
+          const finalV1 = newV1 * params.restitution;
+          const finalV2 = newV2 * params.restitution;
+          
+          // 设置新速度
+          Body.setVelocity(blockA, { x: finalV1, y: 0 });
+          Body.setVelocity(blockB, { x: finalV2, y: 0 });
+        }
       });
     });
 

@@ -7,12 +7,12 @@ const defaultParams = {
   m2: 1,
   v1: 5,
   v2: 0,
-  x1: 180,
-  x2: 420,
+  x1: 3 * 60,  // 3米
+  x2: 7 * 60,  // 7米
   frictionAir: 0,
   restitution: 1,
   springStiffness: 0.001,  // 弹簧刚度
-  springLength: 240,      // 弹簧自然长度
+  springLength: 4,      // 弹簧自然长度（米）
   hasSpring: false,       // 是否启用弹簧
 };
 
